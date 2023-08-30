@@ -7,6 +7,7 @@ import com.feiyue.spark.client.res.SparkRes;
 import com.feiyue.spark.client.res.SparkResHeader;
 import com.feiyue.spark.client.res.SparkResPayloadChoices;
 import com.feiyue.spark.client.res.SparkResPayloadUsage;
+import com.feiyue.spark.config.SparkConfig;
 import com.feiyue.spark.enums.SparkErrorEnum;
 import com.feiyue.spark.exception.SparkException;
 import com.feiyue.spark.util.SparkUtils;
@@ -57,9 +58,12 @@ public class SparkChatListener extends WebSocketListener {
                 + " --完整响应：" + SparkUtils.toJson(res));
 
         if (2 == status) {
+            syncChatRes.setSid(res.getHeader().getSid());
             syncChatRes.setContent(stringBuilder.toString());
             syncChatRes.setUsage(usage.getText());
             syncChatRes.setComplete(true);
+            syncChatRes.setCode(SparkConfig.ResCode.SUCCESS);
+            syncChatRes.setMessage("SUCCESS");
         }
     }
 
@@ -81,12 +85,18 @@ public class SparkChatListener extends WebSocketListener {
             webSocket.close(1000, "响应数据header为null");
             throw new SparkException(500, "响应数据不完整 SparkRes.header为null，完整响应：" + text);
         }
-
+        String uidMsg = "uid:[" + sparkReq.getHeader().getUid() + "], chatId:[" + sparkReq.getParameter().getChat().getChatId()+"], ";
         // 业务状态判断
         Integer code = header.getCode();
         if (0 != code) {
             webSocket.close(1000, "");
             String errorMsg = SparkErrorEnum.getMsgByCode(code);
+            syncChatRes.setSid(res.getHeader().getSid());
+            syncChatRes.setContent("服务无响应,请稍候重试");
+            syncChatRes.setComplete(true);
+            syncChatRes.setCode(code);
+            syncChatRes.setMessage(errorMsg);
+            System.out.println(uidMsg + "最后一条结果，关闭webSocket连接");
             throw new SparkException(code, errorMsg);
         }
 
@@ -106,7 +116,6 @@ public class SparkChatListener extends WebSocketListener {
 
         //最后一条结果，关闭连接
         if (2 == status) {
-            String uidMsg = "uid:[" + sparkReq.getHeader().getUid() + "], chatId:[" + sparkReq.getParameter().getChat().getChatId()+"], ";
             System.out.println(uidMsg + "最后一条结果，关闭webSocket连接");
             webSocket.close(1000, "");
         }
